@@ -42,3 +42,25 @@ def test_coordinator():
 def test_cli():
     assert main(["audit", "--task-id", "CLI-01"]) == 0
     assert main(["chat", "What", "is", "the", "system", "status?"]) == 0
+
+
+def test_frontier_payload_validation():
+    # Valid payload should not raise
+    p = FrontierPayload("TASK-01", "KEY-01", 10.0, 5.0, "NOMINAL")
+    assert p.task_id == "TASK-01"
+
+    # NaN metric rejected
+    with pytest.raises(ValueError):
+        FrontierPayload("TASK-02", "KEY-02", float("nan"), 5.0, "NOMINAL")
+
+    # Inf metric rejected
+    with pytest.raises(ValueError):
+        FrontierPayload("TASK-03", "KEY-03", 10.0, float("inf"), "NOMINAL")
+
+    # Invalid identifier rejected
+    with pytest.raises(ValueError):
+        FrontierPayload("BAD ID!", "KEY-04", 10.0, 5.0, "NOMINAL")
+
+    # Overly long identifier rejected
+    with pytest.raises(ValueError):
+        FrontierPayload("X" * 200, "KEY-05", 10.0, 5.0, "NOMINAL")

@@ -63,3 +63,40 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# New validation tests
+# ---------------------------------------------------------------------------
+
+def test_payload_rejects_nan():
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="T-NAN", target_identifier="KEY", primary_metric=float("nan"))
+
+
+def test_payload_rejects_inf():
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="T-INF", target_identifier="KEY", primary_metric=float("inf"))
+
+
+def test_payload_rejects_long_id():
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="X" * 200, target_identifier="KEY", primary_metric=10.0)
+
+
+def test_payload_strips_whitespace():
+    p = SystemTaskPayload(task_id="  T1  ", target_identifier="  KEY-01  ", primary_metric=10.0)
+    assert p.task_id == "T1"
+    assert p.target_identifier == "KEY-01"
+
+
+def test_payload_rejects_control_chars():
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="T\x00BAD", target_identifier="KEY", primary_metric=10.0)
+
+
+def test_phi_redaction():
+    redacted = PHIGuard.redact_phi("Contact patient at 555-123-4567 or MRN-12345")
+    assert "555-123-4567" not in redacted
+    assert "MRN-12345" not in redacted
+    assert "[REDACTED_IDENTIFIER]" in redacted
