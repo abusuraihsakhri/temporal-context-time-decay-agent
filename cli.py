@@ -12,6 +12,16 @@ from agents.base import AuditLogger
 supervisor = SystemSupervisor(model_provider="mock")
 
 
+def parse_csv_bool(value: str) -> bool:
+    """Parse strict boolean literals instead of treating all nonempty strings as true."""
+    normalized = str(value).strip().lower()
+    if normalized in ("true", "1", "yes", "y"):
+        return True
+    if normalized in ("false", "0", "no", "n", ""):
+        return False
+    raise ValueError(f"Invalid is_critical_flag value: {value!r}")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="temporal-context-time-decay-agent", description="Temporal Context Time Decay Agent")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -77,7 +87,7 @@ def main(argv=None):
         trail = AuditLogger.get_trail()
         valid = AuditLogger.verify_integrity()
         print(f"Audit Trail Blocks: {len(trail)} | Cryptographic Integrity Verified: {valid}")
-        return 0
+        return 0 if valid else 1
 
     if args.command == "batch":
         with open(args.input, mode="r", encoding="utf-8-sig") as f:
@@ -85,7 +95,7 @@ def main(argv=None):
             fieldnames = list(reader.fieldnames or [])
             rows = list(reader)
 
-        out_fields = fieldnames + ["overall_urgency", "integrity_status", "total_alerts", "audit_hash"]
+        out_fields = list(dict.fromkeys(fieldnames + ["overall_urgency", "integrity_status", "total_alerts", "audit_hash"]))
         out_rows = []
         for r in rows:
             payload = SystemTaskPayload(
@@ -94,7 +104,7 @@ def main(argv=None):
                 primary_metric=float(r.get("primary_metric", 15.0)),
                 secondary_metric=float(r.get("secondary_metric", 5.0)),
                 status_descriptor=r.get("status_descriptor", "NOMINAL"),
-                is_critical_flag=bool(r.get("is_critical_flag", False)),
+                is_critical_flag=parse_csv_bool(r.get("is_critical_flag", "")),
             )
             dossier = supervisor.process_task(payload)
             row_dict = dict(r)
