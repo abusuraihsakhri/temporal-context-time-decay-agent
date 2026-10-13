@@ -7,6 +7,7 @@ import json
 import sys
 from .models import FrontierPayload
 from .agents import TemporalDecayCoordinator
+from .decay import calculate_salience
 
 coordinator = TemporalDecayCoordinator()
 
@@ -47,7 +48,28 @@ def main(argv=None):
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
 
+    p_score = subparsers.add_parser("score", help="Calculate exponential temporal memory salience")
+    p_score.add_argument("--age-hours", type=float, required=True)
+    p_score.add_argument("--half-life-hours", type=float, required=True)
+    p_score.add_argument("--base-salience", type=float, default=1.0)
+    p_score.add_argument("--access-count", type=int, default=0)
+    p_score.add_argument("--access-boost", type=float, default=0.15)
+
     args = parser.parse_args(argv)
+
+    if args.command == "score":
+        try:
+            value = calculate_salience(
+                age_hours=args.age_hours,
+                half_life_hours=args.half_life_hours,
+                base_salience=args.base_salience,
+                access_count=args.access_count,
+                access_boost=args.access_boost,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(f"{value:.12g}")
+        return 0
 
     if args.command == "audit":
         payload = FrontierPayload(
