@@ -27,5 +27,5 @@ dependencies = [
 temporal-context-time-decay-engine = "temporal_decay.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/abusuraihsakhri/temporal-context-time-decay-engine"
-Repository = "https://github.com/abusuraihsakhri/temporal-context-time-decay-engine.git"
+Homepage = "https://github.com/abusuraihsakhri/temporal-context-time-decay-agent"
+Repository = "https://github.com/abusuraihsakhri/temporal-context-time-decay-agent.git"
