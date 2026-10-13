@@ -1,119 +1,73 @@
 # Temporal Context Time Decay Agent
 
-> **Domain:** Autonomous Agent Systems & Context State Architecture  
-> **Reference Guidelines & Standards:** `Distributed Systems RFC & State Machine Verification`
+A Python toolkit and standalone browser calculator for time-weighted context salience. It also retains the repository's original threshold-based, multi-worker audit workflow.
 
-<div align="center">
+## What it does
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+**Temporal memory scoring:** an explicit exponential-decay heuristic in `temporal_decay.decay`:
 
-</div>
+```text
+salience = min(1, base_salience × 2^(-age_hours / half_life_hours)
+                  × (1 + access_boost × ln(1 + access_count)))
+```
 
----
+The score is bounded between 0 and 1. Inputs require a nonnegative age, positive half-life, initial salience in [0, 1], nonnegative integer access count, and nonnegative boost. `rank_memories` sorts records by score using timezone-aware timestamps. **This is an illustrative context-ranking heuristic, not a validated model of human memory.**
 
-## 📖 What It Does
+**Legacy threshold audit:** three deterministic workers flag primary metric >25, secondary metric >12 (or an explicit critical flag), and descriptors containing discordance markers. This independent workflow is retained for backward compatibility, and its thresholds are not derived from Ebbinghaus theory.
 
-**Temporal Context Time Decay Agent** is an advanced analytical and computational platform implementing Ebbinghaus exponential forgetting curves for time-weighted memory salience.
+## Browser application
 
----
+Open [`web/index.html`](web/index.html) in a modern browser to calculate and visualize salience, export calculation history to CSV, or evaluate legacy thresholds without starting a server. The page uses native HTML, CSS, and JavaScript; no Pyodide or Python runtime is necessary.
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+All browser calculations execute locally. No analytics, remote requests, browser storage, or sensitive-data processing are needed. The browser audit is **not** an HMAC-signed server audit. Do not enter personal identifiers.
 
-- **Deterministic Calculation Engine**: Strict compliance with standard reference formulations and thresholds.
-- **Risk & Urgency Classification**: Multi-tier categorization with automated clinical/operational action recommendations.
-- **Validation & Guardrails**: Rigorous input bounds checking and anomaly detection.
+## Install and run locally
 
----
+Requires Python 3.9+; CI runs on Python 3.10–3.12.
 
-## 💻 CLI Quickstart & Usage
+```bash
+python -m pip install -e .
+python -m pip install pytest
+python -m pytest -q
+```
 
-### 1. Run a Single Audit
+Calculate salience:
+
+```bash
+temporal-context-time-decay-engine score --age-hours 12 --half-life-hours 24 --base-salience 0.85 --access-count 3
+python cli.py score --age-hours 24 --half-life-hours 24
+```
+
+Run the original audit workflow:
+
 ```bash
 python cli.py audit --task-id TASK-001 --target KEY-01 --primary 28.5 --secondary 14.2 --critical --status DISCORDANT
-```
-
-### 2. Chat with the Supervisor
-```bash
-python cli.py chat "What is the system status?"
-```
-
-### 3. Batch Process CSV Records
-```bash
 python cli.py batch -i sample.csv -o results.csv
-```
-
-### 4. Verify Audit Trail Integrity
-```bash
+python cli.py chat "What is the system status?"
 python cli.py verify-audit
 ```
 
-### 5. Launch REST API Server
-```bash
-python cli.py serve --host 127.0.0.1 --port 8000
-```
+Batch CSV must supply `task_id`, `target_identifier`, and finite numeric fields. Boolean `is_critical_flag` accepts `true/false`, `1/0`, `yes/no`, or `y/n` (case-insensitive); other values are rejected.
 
-### Input Data Schema
-
-| Field | Type | Description | Requirement |
-|:------|:-----|:------------|:------------|
-| `task_id` | string (max 128 chars) | Unique task identifier | Required |
-| `target_identifier` | string (max 128 chars) | Target entity key | Required |
-| `primary_metric` | float (finite) | Primary measurement value | Required |
-| `secondary_metric` | float (finite) | Secondary metric value | Optional (default 0.0) |
-| `is_critical_flag` | boolean | Emergency escalation flag | Optional (default false) |
-| `status_descriptor` | string (max 64 chars) | Status code descriptor | Optional (default "NOMINAL") |
-
----
-
-## 🛡️ Security & Enterprise Architecture
-
-* **Zero-PHI Outbound Interceptor:** Active regex inspection blocking SSNs, MRNs, phone numbers, emails, and patient identifiers.
-* **Tamper-evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
-
-### Security Configuration
-
-Set a persistent audit secret key via environment variable:
+Launch the FastAPI service:
 
 ```bash
-# Linux/macOS
-export AUDIT_SECRET_KEY="your-256-bit-secret-key"
-
-# Windows
-set AUDIT_SECRET_KEY=your-256-bit-secret-key
+export AUDIT_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+uvicorn agents.api:app --host 127.0.0.1 --port 8000
 ```
 
-Without this variable, the system generates an ephemeral key at startup (suitable for development/testing but not for production).
+API documentation is served at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). Available endpoints include `POST /api/audit`, `POST /api/decay`, `POST /api/chat`, `GET /metrics` (Prometheus text), `GET /api/audit/logs`, and `GET /health`.
 
----
+## Security, limitations, and privacy
 
-## 🧪 Testing & Verification
+- The server applies a **regex-based identifier guard** to selected inputs; it is not a guarantee of PHI detection or HIPAA compliance. Avoid sending sensitive data. The default mock chat engine does not invoke remote LLM providers.
+- The audit trail is **in-memory**, chained with HMAC-SHA256, and verifies record signatures and links. It is not durable or independently anchored. Restarting the process loses this history, and the CLI `verify-audit` command checks only that process's current trail.
+- Set a persistent, secret `AUDIT_SECRET_KEY` for deployments. The Compose file requires it from the environment. Any previously published Compose key should be treated as disclosed and rotated if it was used.
+- API endpoints have no authentication, persistence layer, or deployment-grade rate limiting. Do not expose the API directly to an untrusted network.
+- The original `temporal_decay` threshold coordinator and `agents` supervisor have different historical thresholds; they are preserved as separate compatibility interfaces.
 
-Install dev dependencies and run the automated test suite:
+Run in Docker using `docker build -t temporal-decay .` then `docker run -e AUDIT_SECRET_KEY=... -p 8000:8000 temporal-decay`. For Compose, export the key before `docker compose up --build`.
 
-```bash
-pip install pytest
-pytest -v
-```
+## Technology and license
 
-Execute high-throughput batch simulation benchmarks:
-
-```bash
-python simulator.py 1000
-```
-
----
-
-## 🐳 Container Deployment
-
-```bash
-docker build -t temporal-context-time-decay-agent .
-docker run -p 8000:8000 temporal-context-time-decay-agent
-```
+Python, Pydantic, FastAPI, Uvicorn; browser interface in vanilla JavaScript. Tests use pytest and GitHub Actions. Desktop and mobile browsers with modern JavaScript and SVG support are suitable. Licensed under [MIT](LICENSE).
