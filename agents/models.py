@@ -36,7 +36,10 @@ class SystemTaskPayload(BaseModel):
     def _no_control_chars(cls, v: str) -> str:
         if any(ord(c) < 32 for c in v):
             raise ValueError("Field must not contain control characters")
-        return v.strip()
+        normalized = v.strip()
+        if not normalized:
+            raise ValueError("Identifier must not be empty")
+        return normalized
 
     @field_validator("primary_metric", "secondary_metric")
     @classmethod

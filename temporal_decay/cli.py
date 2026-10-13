@@ -7,8 +7,18 @@ import json
 import sys
 from .models import FrontierPayload
 from .agents import TemporalDecayCoordinator
+from .decay import calculate_salience
 
 coordinator = TemporalDecayCoordinator()
+
+
+def parse_csv_bool(value: str) -> bool:
+    normalized = str(value).strip().lower()
+    if normalized in ("true", "1", "yes", "y"):
+        return True
+    if normalized in ("false", "0", "no", "n", ""):
+        return False
+    raise ValueError(f"Invalid is_critical_flag value: {value!r}")
 
 
 def main(argv=None):
@@ -38,7 +48,28 @@ def main(argv=None):
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
 
+    p_score = subparsers.add_parser("score", help="Calculate exponential temporal memory salience")
+    p_score.add_argument("--age-hours", type=float, required=True)
+    p_score.add_argument("--half-life-hours", type=float, required=True)
+    p_score.add_argument("--base-salience", type=float, default=1.0)
+    p_score.add_argument("--access-count", type=int, default=0)
+    p_score.add_argument("--access-boost", type=float, default=0.15)
+
     args = parser.parse_args(argv)
+
+    if args.command == "score":
+        try:
+            value = calculate_salience(
+                age_hours=args.age_hours,
+                half_life_hours=args.half_life_hours,
+                base_salience=args.base_salience,
+                access_count=args.access_count,
+                access_boost=args.access_boost,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(f"{value:.12g}")
+        return 0
 
     if args.command == "audit":
         payload = FrontierPayload(
@@ -74,7 +105,7 @@ def main(argv=None):
             fieldnames = list(reader.fieldnames or [])
             rows = list(reader)
 
-        out_fields = fieldnames + ["overall_status", "total_alerts", "critical_count", "consensus_summary"]
+        out_fields = list(dict.fromkeys(fieldnames + ["overall_status", "total_alerts", "critical_count", "consensus_summary"]))
         out_rows = []
         for r in rows:
             payload = FrontierPayload(
@@ -83,7 +114,7 @@ def main(argv=None):
                 primary_metric=float(r.get("primary_metric", 15.0)),
                 secondary_metric=float(r.get("secondary_metric", 5.0)),
                 status_descriptor=r.get("status_descriptor", "NOMINAL"),
-                is_critical_flag=bool(r.get("is_critical_flag", False)),
+                is_critical_flag=parse_csv_bool(r.get("is_critical_flag", "")),
             )
             dossier = coordinator.process(payload)
             row_dict = dict(r)

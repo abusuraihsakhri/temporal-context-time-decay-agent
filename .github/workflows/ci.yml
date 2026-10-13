@@ -24,7 +24,22 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install fastapi uvicorn pydantic pytest
+        pip install -e . pytest
+
+    - name: Compile Python modules
+      run: python -m compileall -q agents temporal_decay cli.py simulator.py enrichment.py
+
+    - name: Validate browser JavaScript syntax
+      run: |
+        python - <<'PY'
+        import re
+        from pathlib import Path
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        script = re.search(r"<script>(.*?)</script>", html, re.S)
+        assert script, "Browser application script missing"
+        Path("/tmp/temporal-decay-ui.js").write_text(script.group(1), encoding="utf-8")
+        PY
+        node --check /tmp/temporal-decay-ui.js
 
     - name: Run Pytest Suite
       run: |
