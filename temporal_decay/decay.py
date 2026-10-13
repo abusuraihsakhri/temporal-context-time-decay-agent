@@ -3,6 +3,8 @@
 This model is an illustrative ranking heuristic, not a fitted human-memory model.
 Scores are bounded to [0, 1]. All ages and half-lives are expressed in hours.
 """
+from __future__ import annotations
+
 import math
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
