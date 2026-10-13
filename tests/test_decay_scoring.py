@@ -81,3 +81,22 @@ def test_hmac_detects_terminal_signature_replacement():
 def test_reject_blank_identifiers():
     with pytest.raises(ValueError):
         SystemTaskPayload(task_id="  ", target_identifier="valid", primary_metric=1)
+
+
+def test_batch_csv_false_flag_never_escalates(tmp_path):
+    import csv
+    from cli import main as audit_main
+    from temporal_decay.cli import main as legacy_main
+    source = tmp_path / "input.csv"
+    source.write_text(
+        "task_id,target_identifier,primary_metric,secondary_metric,status_descriptor,is_critical_flag\\n"
+        "T1,KEY-01,5,1,NOMINAL,False\\n", encoding="utf-8"
+    )
+    # Convert the escaped fixture newlines to real CSV row separators.
+    source.write_text(source.read_text().replace("\\n", "\n"))
+    for cli_main, field in [(audit_main, "overall_urgency"), (legacy_main, "overall_status")]:
+        target = tmp_path / ("out-" + field + ".csv")
+        assert cli_main(["batch", "-i", str(source), "-o", str(target)]) == 0
+        with target.open(newline="", encoding="utf-8") as stream:
+            row = next(csv.DictReader(stream))
+        assert row[field].startswith("ROUTINE") or row[field].startswith("NOMINAL")
