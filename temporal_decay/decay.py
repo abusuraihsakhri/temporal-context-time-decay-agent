@@ -28,7 +28,7 @@ def calculate_salience(
     if isinstance(access_count, bool) or not isinstance(access_count, int) or access_count < 0:
         raise ValueError("Access count must be a nonnegative integer")
 
-    score = base_salience * math.exp2(-age_hours / half_life_hours)
+    score = base_salience * math.pow(2.0, -age_hours / half_life_hours)
     score *= 1.0 + access_boost * math.log1p(access_count)
     return min(1.0, score)
 
